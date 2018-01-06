@@ -1,60 +1,63 @@
-'use strict'
+"use strict"
 
-var gulp  = require('gulp');
-var connect = require('gulp-connect'); //run a local dev server
-var open = require('gulp-open'); //open a url in browser
+var gulp = require('gulp');
+var connect = require('gulp-connect');
+var open = require('gulp-open');
 var browserify = require('browserify');
-var reactify = require('reactify');
 var source = require('vinyl-source-stream');
 var concat = require('gulp-concat');
-var eslint = require('gulp-eslint'); // lint jsx file
+var lint = require('gulp-eslint');
+var historyApiFallback = require('connect-history-api-fallback');
 
 var config = {
-	post: 8080,
+	port: 8080,
 	devBaseUrl: 'http://localhost',
-	paths:{
+	paths: {
 		html: './src/*.html',
 		js: './src/**/*.js',
-		css:[
+		images: './src/images/*',
+		css: [
 			'node_modules/bootstrap/dist/css/bootstrap.min.css',
-			'node_modules/bootstrap/dist/css/bootstrap-theme-min.css'
+			'node_modules/bootstrap/dist/css/bootstrap-theme.min.css',
+			'node_modules/toastr/build/toastr.min.css'
 		],
 		dist: './dist',
 		mainJs: './src/main.js'
 	}
 }
 
-// start a dev server
-gulp.task('connect', function() {
+//start a local dev server
+gulp.task('connect', function(){
 	connect.server({
 		root: ['dist'],
-		post: config.port,
-		base: config.devBaseUrl,
+		middleware: function(connect,opt){
+			return [historyApiFallback]
+		},
+		port: config.port,
+		base: devBaseUrl,
 		livereload: true
-	});
-});
-
-//open and read html then pipe it to the port
-gulp.task('open', ['connect'], function(){
-	gulp.src('dist/index.html')
-		.pipe(open({ url: config.devBaseUrl + ':' + config.port + '/' }))
+	})
 })
 
-//read html then pipe to the root dest folder
+gulp.task('open',['connect'],function(){
+	gulp.src('dist/index.html')
+		.pipe(open({uri: config.devBaseUrl + ":" + config.port + '/'}))
+})
+
 gulp.task('html',function(){
 	gulp.src(config.paths.html)
 		.pipe(gulp.dest(config.paths.dist))
-		.pipe(connect.reload());
+		.pipe(connect.reload())
 })
 
 gulp.task('js',function(){
 	browserify(config.paths.mainJs)
-		.transform(reactify)
+		.transform('babelify',{presets:['react']})
 		.bundle()
 		.on('error',console.error.bind(console))
 		.pipe(source('bundle.js'))
-		.pipe(gulp.dest(config.paths.dist + '/scripts'))
-		.pipe(connect.reload());
+		.pipe(gulp.dest(config.paths.dist+'/scripts'))
+		.pipe(connect.reload())
 })
 
 gulp.task('css',function(){
@@ -63,16 +66,24 @@ gulp.task('css',function(){
 		.pipe(gulp.dest(config.paths.dist + '/css'))
 })
 
-gulp.task('lint',function(){
-	return gulp.src(config.paths.js)
-		.pipe(eslint({configFile: 'eslint.config.json'}))
-		.pipe(eslint.format());
+gulp.task('images',function(){
+	gulp.src(config.paths.images)
+		.pipe(gulp.dest(config.paths.dist + '/images'))
+		.pipe(connect.reload())
+
+	gulp.src('./src/favicon.ico')
+		.pipe(gulp.dest(config.paths.dist))
 })
 
-//watch the file change
-gulp.task('watch',function(){
-	gulp.watch(config.paths.html,['html'])
+gulp.task('lint',function(){
+	return gulp.src(config.paths.js)
+		.pipe(lint({config: '.eslintrc'}))
+		.pipe(lint.format())
+})
+
+gulp.task('watch', function(){
+	gulp.watch(config.paths.html, ['html'])
 	gulp.watch(config.paths.js,['js','lint'])
 })
 
-gulp.task('default',['html','js','css','lint','open','watch']);
+gulp.task('default', ['html','js','css','images','lint','open','watch'])
